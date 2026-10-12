@@ -39,6 +39,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #define gotcha_strcmp strcmp
 #define gotcha_getenv getenv
 #define gotcha_getpid getpid
+/* glibc does not declare getpagesize() when built with strict POSIX feature
+ * macros (e.g. -D_POSIX_C_SOURCE=200809L), and gcc >= 14 rejects the implicit
+ * declaration. The symbol is still exported, so declare it here. */
+extern int getpagesize(void);
 #define gotcha_getpagesize getpagesize
 #define gotcha_open open
 #define gotcha_mmap mmap

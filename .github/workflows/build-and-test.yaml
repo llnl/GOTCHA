@@ -66,6 +66,42 @@ jobs:
           cat $FILE
           curl -v -F json_file=@$FILE https://coveralls.io/api/v1/jobs
 
+  build-and-test-glibc:
+    # Build inside manylinux containers (gcc 14) on old and new glibc. The
+    # _POSIX_C_SOURCE variant matches projects that pull GOTCHA in through
+    # FetchContent with strict POSIX definitions.
+    runs-on: ubuntu-24.04
+    name: glibc ${{ matrix.glibc.version }} ${{ matrix.flags.name }}
+    container:
+      image: quay.io/pypa/manylinux_${{ matrix.glibc.tag }}_x86_64
+    strategy:
+      fail-fast: false
+      matrix:
+        glibc:
+          - { tag: "2_28", version: "2.28", repo: "powertools" }
+          - { tag: "2_34", version: "2.34", repo: "crb" }
+        flags:
+          - { name: "default", cflags: "" }
+          - { name: "posix", cflags: "-D_POSIX_C_SOURCE=200809L" }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Check glibc version
+        run: ldd --version | head -1 | grep -q " ${{ matrix.glibc.version }}$"
+      - name: Install additional packages
+        run: dnf -y --enablerepo=${{ matrix.glibc.repo }} install check-devel
+      - name: Configure and Build
+        run: |
+          cmake . -B build -DGOTCHA_ENABLE_TESTS=ON -DDEPENDENCIES_PREINSTALLED=TRUE \
+            -DCMAKE_BUILD_TYPE=PROFILE -DGOTCHA_ENABLE_WARNING_ERROR=ON \
+            -DCMAKE_C_FLAGS="${{ matrix.flags.cflags }}"
+          cmake --build build
+      - name: Unit Tests
+        run: ctest --test-dir build -VV
+
   build-and-test-fedora:
     name: fedora
     runs-on: ubuntu-latest
